@@ -1,0 +1,54 @@
+#!/bin/sh
+
+# Your Zenoss server settings.
+# The URL to access your Zenoss5 Endpoint
+source ../ZenossEnv.var
+# Generic call to make Zenoss JSON API calls easier on the shell.
+zenoss_api () {
+    ROUTER_ENDPOINT=$1
+    ROUTER_ACTION=$2
+    ROUTER_METHOD=$3
+    DATA=$4
+
+    if [ -z "${DATA}" ]; then
+        echo "Usage: zenoss_api <endpoint> <action> <method> <data>"
+        return 1
+    fi
+# add a -k for the curl call to ignore the default cert
+    curl \
+        -k \
+        -u "$ZENOSS_USERNAME:$ZENOSS_PASSWORD" \
+        -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"action\":\"$ROUTER_ACTION\",\"method\":\"$ROUTER_METHOD\",\"data\":[$DATA], \"tid\":1}" \
+        "$ZENOSS_URL/zport/dmd/$ROUTER_ENDPOINT"
+}
+set_collector()
+{
+        HOSTSFILEPATH="./"
+        HOSTSFILENAME="$1"
+	DEVICECLASS="$2"
+	COLLECTOR_NAME="$3"
+
+        while IFS=',' read -r HOSTNAME
+        do
+	echo "/zport/dmd/Devices$DEVICECLASS/devices/$HOSTNAME"
+	#echo $1
+	#echo $2
+	#echo $3
+	#return 1
+	zenoss_api "device_router" "DeviceRouter" setCollector "{\"uids\":[\"/zport/dmd/Devices$DEVICECLASS/devices/$HOSTNAME\"],\"asynchronous\":\"false\",\"collector\":\"$COLLECTOR_NAME\",\"hashcheck\":\"\"}"
+        done < "$HOSTSFILEPATH$HOSTSFILENAME"
+
+}
+if [ "$1" = "set_collector" ]; then
+        set_collector "$2" "$3" "$4"
+else
+        echo ""
+        echo "Incorrect Syntax:"
+        echo ""
+        echo ""
+        echo "$0 set_collector test.csv /Server/SSH localhost"
+        echo "$0 set_collector test.csv /Server/Microsoft/Windows/Windows Leveraged/XXX.dmz localhost"
+fi
+

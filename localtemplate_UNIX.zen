@@ -1,0 +1,84 @@
+#!/bin/bash
+
+# Your Zenoss server settings.
+# The URL to access your Zenoss5 Endpoint
+source ../ZenossEnv.var
+# Generic call to make Zenoss JSON API calls easier on the shell.
+zenoss_api () {
+    ROUTER_ENDPOINT=$1
+    ROUTER_ACTION=$2
+    ROUTER_METHOD=$3
+    DATA=$4
+
+    if [ -z "${DATA}" ]; then
+        echo "Usage: zenoss_api <endpoint> <action> <method> <data>"
+        return 1
+    fi
+# add a -k for the curl call to ignore the default cert
+    curl \
+        -k \
+        -u "$ZENOSS_USERNAME:$ZENOSS_PASSWORD" \
+        -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"action\":\"$ROUTER_ACTION\",\"method\":\"$ROUTER_METHOD\",\"data\":[$DATA], \"tid\":1}" \
+        "$ZENOSS_URL/zport/dmd/$ROUTER_ENDPOINT"
+}
+
+
+clear
+while :
+do
+echo "---------------------------------------------------"
+echo " "
+echo "Add a local [F]ilesystem template for a device"
+echo "[R]emove a local Filesystem template for a device"
+echo "[E]xit"
+echo "---------------------------------------------------"
+echo " "
+
+read Option
+
+case "$Option" in 
+"F" | "f")
+	zenoss_api "device_router" "DeviceRouter" getComponents "{\"uid\":\"/zport/dmd/Devices/Server/SSH/Linux/UAT Leveraged/devices/155.16.54.207\",\"meta_type\":\"FileSystem\"}"
+
+	#echo "Enter the device classname(e.g: /Server/SSH/Linux/UAT Leveraged OR /Server/Microsoft/Windows/UAT Leveraged): "
+	#read deviceclassname
+	#echo "Enter the servername(e.g: 155.16.54.207 OR 155.16.54.87): "
+	#read servername
+	#echo "Creating Local Template"
+	#echo $servername
+	#echo $deviceclassname
+ 	#UIDS=`zenoss_api "device_router" "DeviceRouter" getComponents "{\"uid\":\"/zport/dmd/Devices$deviceclassname/devices/$servername\",\"meta_type\":\"FileSystem\"}"| $SCRIPTS_DIR/jq -M '.result.data[].uid'`
+	
+	for i in `echo $UIDS`;
+	do
+		echo $i
+		echo ""
+	done
+	
+
+;;
+
+"R" | "r")
+
+       echo "Enter the device classname(e.g: /Server/SSH/Linux/UAT Leveraged OR /Server/Microsoft/Windows/UAT Leveraged): "
+        read deviceclassname
+        echo "Enter the servername(e.g: 155.16.54.207  OR 155.16.54.87): "
+        read servername
+        echo "Deleting Local Template"
+        zenoss_api "template_router" "TemplateRouter" "removeLocalRRDTemplate" "{\"uid\":\"/zport/dmd/Devices$deviceclassname/devices/$servername/os/filesystems/\",\"templateName\":\"/zport/dmd/Devices$deviceclassname/rrdTemplates/FileSystem\"}"
+
+;;
+
+"E"|"e")
+break
+;;
+
+*)
+echo "Enter correct choice! "
+;;
+esac
+done
+		
+

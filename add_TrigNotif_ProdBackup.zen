@@ -1,0 +1,207 @@
+#!/bin/sh
+
+source ../ZenossEnv.var
+
+zenoss_api () {
+    ROUTER_ENDPOINT=$1
+    ROUTER_ACTION=$2
+    ROUTER_METHOD=$3
+    DATA=$4
+
+    if [ -z "${DATA}" ]; then
+        echo "Usage: zenoss_api <endpoint> <action> <method> <data>"
+        return 1
+    fi
+# add a -k for the curl call to ignore the default cert
+    curl \
+        -k \
+        -u "$ZENOSS_USERNAME:$ZENOSS_PASSWORD" \
+        -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"action\":\"$ROUTER_ACTION\",\"method\":\"$ROUTER_METHOD\",\"data\":[$DATA], \"tid\":1}" \
+        "$ZENOSS_URL/zport/dmd/$ROUTER_ENDPOINT"
+}
+
+
+add_trigger() 
+{
+	TRIGGER_NAME1=$1
+	#TRIGGER_NAME2=$2
+	#TRIGGER_NAME3=$3
+	#TRIGGER_NAME4=$4
+	#TRIGGER_NAME5=$5
+	#TRIGGER_NAME6=$6
+	#TRIGGER_NAME7=$7
+
+	#echo $TRIGGER_NAME1,$TRIGGER_NAME2,$TRIGGER_NAME3,$TRIGGER_NAME4,$TRIGGER_NAME5,$TRIGGER_NAME6,$TRIGGER_NAME7
+
+	zenoss_api Events/triggers_router TriggersRouter addTrigger "{\"newId\":\"$TRIGGER_NAME1\"}"
+	#zenoss_api Events/triggers_router TriggersRouter addTrigger "{\"newId\":\"$TRIGGER_NAME2\"}"
+	#zenoss_api Events/triggers_router TriggersRouter addTrigger "{\"newId\":\"$TRIGGER_NAME3\"}"
+	#zenoss_api Events/triggers_router TriggersRouter addTrigger "{\"newId\":\"$TRIGGER_NAME4\"}"
+	#zenoss_api Events/triggers_router TriggersRouter addTrigger "{\"newId\":\"$TRIGGER_NAME5\"}"
+	#zenoss_api Events/triggers_router TriggersRouter addTrigger "{\"newId\":\"$TRIGGER_NAME6\"}"
+	#zenoss_api Events/triggers_router TriggersRouter addTrigger "{\"newId\":\"$TRIGGER_NAME7\"}"
+    
+}
+
+
+update_trigger()
+{
+
+	TRIGGER_NAME1=$1
+	#TRIGGER_NAME2=$2
+	#TRIGGER_NAME3=$3
+	#TRIGGER_NAME4=$4
+	#TRIGGER_NAME5=$5
+	#TRIGGER_NAME6=$6
+	#TRIGGER_NAME7=$7
+        	
+
+#echo $TRIGGER_NAME1,$TRIGGER_NAME2,$TRIGGER_NAME3,$TRIGGER_NAME4,$TRIGGER_NAME5,$TRIGGER_NAME6,TRIGGER_NAME7
+#zenoss_api Events/triggers_router TriggersRouter getTriggerList "{}"
+
+TRIGGER_UUID1=`zenoss_api Events/triggers_router TriggersRouter getTriggerList "{}"|$SCRIPTS_DIR/jq --arg TRIGGER_NAME "$TRIGGER_NAME1" '.result.data[]|select(.name==$TRIGGER_NAME)' |$SCRIPTS_DIR/jq '.uuid'`
+#echo $TRIGGER_UUID1
+#TRIGGER_UUID2=`zenoss_api Events/triggers_router TriggersRouter getTriggerList "{}"|$SCRIPTS_DIR/jq --arg TRIGGER_NAME "$TRIGGER_NAME2" '.result.data[]|select(.name==$TRIGGER_NAME)' |$SCRIPTS_DIR/jq '.uuid'`
+#echo $TRIGGER_UUID2
+#TRIGGER_UUID3=`zenoss_api Events/triggers_router TriggersRouter getTriggerList "{}"|$SCRIPTS_DIR/jq --arg TRIGGER_NAME "$TRIGGER_NAME3" '.result.data[]|select(.name==$TRIGGER_NAME)' |$SCRIPTS_DIR/jq '.uuid'`
+#echo $TRIGGER_UUID3
+#TRIGGER_UUID4=`zenoss_api Events/triggers_router TriggersRouter getTriggerList "{}"|$SCRIPTS_DIR/jq --arg TRIGGER_NAME "$TRIGGER_NAME4" '.result.data[]|select(.name==$TRIGGER_NAME)' |$SCRIPTS_DIR/jq '.uuid'`
+#echo $TRIGGER_UUID4
+#TRIGGER_UUID5=`zenoss_api Events/triggers_router TriggersRouter getTriggerList "{}"|$SCRIPTS_DIR/jq --arg TRIGGER_NAME "$TRIGGER_NAME5" '.result.data[]|select(.name==$TRIGGER_NAME)' |$SCRIPTS_DIR/jq '.uuid'`
+#echo $TRIGGER_UUID5
+#TRIGGER_UUID6=`zenoss_api Events/triggers_router TriggersRouter getTriggerList "{}"|$SCRIPTS_DIR/jq --arg TRIGGER_NAME "$TRIGGER_NAME6" '.result.data[]|select(.name==$TRIGGER_NAME)' |$SCRIPTS_DIR/jq '.uuid'`
+#echo $TRIGGER_UUID6
+#TRIGGER_UUID7=`zenoss_api Events/triggers_router TriggersRouter getTriggerList "{}"|$SCRIPTS_DIR/jq --arg TRIGGER_NAME "$TRIGGER_NAME7" '.result.data[]|select(.name==$TRIGGER_NAME)' |$SCRIPTS_DIR/jq '.uuid'`
+#echo $TRIGGER_UUID7
+
+
+#if ([ -z "$TRIGGER_UUID1" ] || [ -z "$TRIGGER_UUID2" ] ||  [ -z "$TRIGGER_UUID3" ] ||  [ -z "$TRIGGER_UUID4" ] ||  [ -z "$TRIGGER_UUID5" ] ||  [ -z "$TRIGGER_UUID6" ] || [ -z "$TRIGGER_UUID7" ] ); then
+if ([ -z "$TRIGGER_UUID1" ]); then
+        echo "Error: Trigger is not present"
+        return 1
+fi
+
+
+Rules1="(dev.production_state == 1000) and (evt.severity >= 2) and (\\\"/App/Zenoss\\\" not in evt.event_class) and (evt.count >= 3) and (\\\"Cluster Disk\\\" not in sub_elem.name) and (\\\"multiple datasources have been disabled\\\" not in evt.summary) and (\\\"/Status/SQL\\\" not in evt.event_class) and (\\\"/Status/Winrm\\\" not in evt.event_class) and (\\\"/Perf/MissedRuns\\\" not in evt.event_class) and (\\\"/vSphere\\\" not in evt.event_class) and (\\\"/Win/evtsys\\\" not in evt.event_class) and (\\\"threshold of zenmodeler cycle time exceeded\\\" not in evt.summary) and (\\\"Missed run\\\" not in evt.summary) and (\\\"/Cmd/Fail\\\" not in evt.event_class) and (\\\"/Unknown\\\" not in evt.event_class) and (\\\"Server not found in Kerberos\\\" not in evt.message) and (\\\"Illegal operation attempted on\\\" not in evt.message) and (\\\"threshold of Processor Queue\\\" not in evt.message) and (\\\"HTTP Unauthorized received\\\" not in evt.message) and (\\\"kerberos\\\" not in evt.summary) and (\\\"authGSSClientStep fail\\\" not in evt.message) and (\\\"Windows Perfmon Error\\\" not in evt.message) and (\\\"kinit: Clients credentials have\\\" not in evt.message) and (\\\"failed collection\\\" not in evt.message)"
+zenoss_api Events/triggers_router TriggersRouter updateTrigger "{\"uuid\":$TRIGGER_UUID1,\"enabled\":true,\"name\":\"$TRIGGER_NAME1\",\"rule\":{\"source\":\"$Rules1\"},\"globalRead\":false,\"globalWrite\":false,\"globalManage\":false,\"users\":[]}"
+
+#Rules6="(dev.production_state == 1000) and (evt.severity >= 2) and (\\\"/App/Zenoss\\\" not in evt.event_class) and (\\\"/Status/Winrm\\\" not in evt.event_class) and (\\\"/Perf/MissedRuns\\\" not in evt.event_class) and (\\\"/Status/Winrm/Ping\\\" not in evt.event_class) and (\\\"/Cmd/Fail\\\" not in evt.event_class) and (\\\"Server not found in Kerberos\\\" not in evt.message) and (\\\"Illegal operation attempted on\\\" not in evt.message) and (\\\"threshold of Processor Queue\\\" not in evt.message) and (\\\"HTTP Unauthorized received\\\" not in evt.message) and (\\\"kerberos\\\" not in evt.summary) and (\\\"authGSSClientStep fail\\\" not in evt.message) and (\\\"Windows Perfmon Error\\\" not in evt.message) and (\\\"kinit: Clients credentials have\\\" not in evt.message) and (\\\"failed collection\\\" not in evt.message)"
+
+#Rules1="(\\\"`echo $HOSTNAME`\\\" in elem.name) and (evt.severity >= 2) and (\\\"MemTotalSwap\\\" not in evt.message)"
+
+#Rules2="(\\\"/Status\\\" in evt.event_class) and (\\\"`echo $HOSTNAME`\\\" in elem.name) and (\\\"API Error 401 Un\\\" in evt.message)"
+
+#zenoss_api Events/triggers_router TriggersRouter updateTrigger "{\"uuid\":$TRIGGER_UUID2,\"enabled\":true,\"name\":\"$TRIGGER_NAME2\",\"rule\":{\"source\":\"$Rules2\"},\"globalRead\":false,\"globalWrite\":false,\"globalManage\":false,\"users\":[]}"
+
+#Rules3="(\\\"/\\\" in dev.groups) and (evt.severity >= 2) and (\\\"/App/Zenoss\\\" not in evt.event_class) and (\\\"/Status/Ping\\\" not in evt.event_class) and (\\\"/Perf/MissedRuns\\\" not in evt.event_class) and (\\\"/Cmd/Fail\\\" not in evt.event_class) and (\\\"threshold of CPU Load\\\" not in evt.summary) and (\\\"High CPU Load\\\" not in evt.summary)"
+#Rules3="(\\\"/\\\" in dev.groups) and (evt.severity >= 2) and (\\\"/App/Zenoss\\\" not in evt.event_class) and (\\\"/Perf/MissedRuns\\\" not in evt.event_class) and (\\\"/Cmd/Fail\\\" not in evt.event_class) and (\\\"threshold of CPU Load\\\" not in evt.summary) and (\\\"High CPU Load\\\" not in evt.summary)"
+
+#zenoss_api Events/triggers_router TriggersRouter updateTrigger "{\"uuid\":$TRIGGER_UUID3,\"enabled\":true,\"name\":\"$TRIGGER_NAME3\",\"rule\":{\"source\":\"$Rules3\"},\"globalRead\":false,\"globalWrite\":false,\"globalManage\":false,\"users\":[]}"
+
+#Rules4="(\\\"/\\\" in dev.groups) and (evt.severity >= 2) and (\\\"/App/Zenoss\\\" not in evt.event_class) and (\\\"/Status/Ping\\\" not in evt.event_class) and (\\\"/Perf/MissedRuns\\\" not in evt.event_class) and (\\\"/Cmd/Fail\\\" not in evt.event_class) and (evt.count >= 3) and ((\\\"threshold of CPU Load\\\" in evt.summary) or (\\\"High CPU Load\\\" in evt.summary))"
+#Rules4="(\\\"/\\\" in dev.groups) and (evt.severity >= 2) and (\\\"/App/Zenoss\\\" not in evt.event_class)and (\\\"/Perf/MissedRuns\\\" not in evt.event_class) and (\\\"/Cmd/Fail\\\" not in evt.event_class) and (evt.count >= 3) and ((\\\"threshold of CPU Load\\\" in evt.summary) or (\\\"High CPU Load\\\" in evt.summary))"
+
+#zenoss_api Events/triggers_router TriggersRouter updateTrigger "{\"uuid\":$TRIGGER_UUID4,\"enabled\":true,\"name\":\"$TRIGGER_NAME4\",\"rule\":{\"source\":\"$Rules4\"},\"globalRead\":false,\"globalWrite\":false,\"globalManage\":false,\"users\":[]}"
+
+#Rules5="(\\\"/\\\" in dev.groups) and (evt.severity > 2) and (evt.count >= 4) and (\\\"threshold of Processor Queue\\\" in evt.message)"
+
+#zenoss_api Events/triggers_router TriggersRouter updateTrigger "{\"uuid\":$TRIGGER_UUID5,\"enabled\":true,\"name\":\"$TRIGGER_NAME5\",\"rule\":{\"source\":\"$Rules5\"},\"globalRead\":false,\"globalWrite\":false,\"globalManage\":false,\"users\":[]}"
+
+#zenoss_api Events/triggers_router TriggersRouter updateTrigger "{\"uuid\":$TRIGGER_UUID6,\"enabled\":true,\"name\":\"$TRIGGER_NAME6\",\"rule\":{\"source\":\"$Rules6\"},\"globalRead\":false,\"globalWrite\":false,\"globalManage\":false,\"users\":[]}"
+
+#Rules7="(\\\"Cluster Disk\\\" not in sub_elem.name) and (\\\"/Status/SQL\\\" not in evt.event_class) and (\\\"/Status\\\" not in evt.event_class) and (\\\"/Unknown\\\" not in evt.event_class) and (\\\"multiple datasources have been disabled\\\" not in evt.summary) and (\\\"/Status/Winrm/Ping\\\" not in evt.event_class) and (\\\"/Win/evtsys\\\" not in evt.event_class) and (\\\"threshold of zenmodeler cycle time exceeded\\\" not in evt.summary) and (\\\"Missed run\\\" not in evt.summary) and (\\\"/vSphere\\\" not in evt.event_class)"
+
+#zenoss_api Events/triggers_router TriggersRouter updateTrigger "{\"uuid\":$TRIGGER_UUID7,\"enabled\":true,\"name\":\"$TRIGGER_NAME7\",\"rule\":{\"source\":\"$Rules7\"},\"globalRead\":false,\"globalWrite\":false,\"globalManage\":false,\"users\":[]}"
+
+
+}
+set_notification()
+{
+
+      NOTIFICATION_NAME=$1
+      #echo NOTIFICATION_NAME
+      ACTION="command"
+
+      if [ -z "$NOTIFICATION_NAME" ]; then
+              echo "Usage:  set_notification <notificataionname>"
+              return 1
+      fi
+
+      zenoss_api Events/triggers_router TriggersRouter addNotification "{\"newId\":\"$NOTIFICATION_NAME\",\"action\":\"$ACTION\"}"	
+      #TRIGGER_NAME1="Linux3ConsecutiveTicketing2"
+      #TRIGGER_NAME2="LinuxTicketing2"
+      #TRIGGER_NAME3="WinTicketing2"
+      #TRIGGER_NAME4="Windows4ConsecutiveTicketing1"
+
+      TRIGGER_NAME1=$2
+      #TRIGGER_NAME2=$3
+      #TRIGGER_NAME3=$4
+      #TRIGGER_NAME4=$5
+      #TRIGGER_NAME5=$6
+
+      #echo $TRIGGER_NAME1,$TRIGGER_NAME2,$TRIGGER_NAME3,$TRIGGER_NAME4
+      #return 1
+      
+      ITSM_TOOL=$3
+      HOST_NAME=`echo $HOSTNAME`
+      
+      TRIGGER_UUID1=`zenoss_api Events/triggers_router TriggersRouter getTriggerList "{}"|$SCRIPTS_DIR/jq --arg TRIGGER_NAME "$TRIGGER_NAME1" '.result.data[]|
+select(.name==$TRIGGER_NAME)' |$SCRIPTS_DIR/jq '.uuid'`
+      #TRIGGER_UUID2=`zenoss_api Events/triggers_router TriggersRouter getTriggerList "{}"|$SCRIPTS_DIR/jq --arg TRIGGER_NAME "$TRIGGER_NAME2" '.result.data[]|
+#select(.name==$TRIGGER_NAME)' |$SCRIPTS_DIR/jq '.uuid'`
+      #TRIGGER_UUID3=`zenoss_api Events/triggers_router TriggersRouter getTriggerList "{}"|$SCRIPTS_DIR/jq --arg TRIGGER_NAME "$TRIGGER_NAME3" '.result.data[]|
+#select(.name==$TRIGGER_NAME)' |$SCRIPTS_DIR/jq '.uuid'`
+      #TRIGGER_UUID4=`zenoss_api Events/triggers_router TriggersRouter getTriggerList "{}"|$SCRIPTS_DIR/jq --arg TRIGGER_NAME "$TRIGGER_NAME4" '.result.data[]|
+#select(.name==$TRIGGER_NAME)' |$SCRIPTS_DIR/jq '.uuid'`
+      #TRIGGER_UUID5=`zenoss_api Events/triggers_router TriggersRouter getTriggerList "{}"|$SCRIPTS_DIR/jq --arg TRIGGER_NAME "$TRIGGER_NAME5" '.result.data[]|
+#select(.name==$TRIGGER_NAME)' |$SCRIPTS_DIR/jq '.uuid'`
+
+
+
+COMMAND="python /opt/zenoss/var/ext/2WaySendEvent/2WaySendEvent.py send -q 'Zenoss' -a 'Zenoss' -n '\${evt/details/CIName}' -p '\${evt/details/esmProfile}' -s '\${evt/OPASSeverity}' -k '\${evt/dedupid}' -c ""'"$HOST_NAME"'""  -t '\${evt/details/msg_mod}' -m '\${evt/details/msg_mod}' -u '\${urls/eventUrl}' -z ""'"$ITSM_TOOL"'"" -e '{\\\"Mc_ueid\\\" : \\\"\${evt/evid}\\\"}' -evid '\${evt/evid}'"
+#COMMAND="python /opt/zenoss/var/ext/2WaySendEvent/2WaySendEvent.py send -q 'Zenoss' -a 'Zenoss' -n '\${evt/details/CIName}' -p '\${evt/details/esmProfile}' -s '\${evt/severity}' -k '\${evt/dedupid}' -c 'dsuszenuatcc01.us.dell.com' -t '\${evt/details/msg_mod}' -m '\${evt/details/msg_mod}' -u '\${urls/eventUrl}' -z ""'"$ITSM_TOOL"'"" -e '{\\\"Mc_ueid\\\":\\\"\${evt/evid}\\\"}' -evid '\${evt/evid}'"
+
+
+CLEAR="python /opt/zenoss/var/ext/2WaySendEvent/2WaySendEvent.py send -q 'Zenoss' -a 'Zenoss' -n '\${evt/details/CIName}' -p '\${evt/details/esmProfile}' -s '\${evt/OPASSeverity}' -k '\${evt/dedupid}' -c ""'"$HOST_NAME"'""  -t '\${evt/details/msg_mod}' -m '\${evt/details/msg_mod}' -u '\${urls/eventUrl}' -z ""'"$ITSM_TOOL"'"" -e '{\\\"Mc_ueid\\\" : \\\"\${evt/evid}\\\"}' -evid '\${evt/evid}'"
+#CLEAR="python /opt/zenoss/var/ext/2WaySendEvent/2WaySendEvent.py send -q 'Zenoss' -a 'Zenoss' -n '\${evt/details/CIName}' -p '\${evt/details/esmProfile}' -s '\${evt/severity}' -k '\${evt/dedupid}' -c 'dsuszenuatcc01.us.dell.com' -t '\${evt/details/msg_mod}' -m '\${evt/details/msg_mod}' -u '\${urls/eventUrl}' -z ""'"$ITSM_TOOL"'"" -e '{"Mc_ueid" : '"\${evt/evid}"'}' -evid '\${evt/evid}'"
+
+zenoss_api triggers_router TriggersRouter updateNotification '{"uid":"/zport/dmd/NotificationSubscriptions/'"$NOTIFICATION_NAME"'","enabled":false,"send_clear":false,"send_initial_occurrence":true,"delay_seconds":"0","repeat_seconds":"0","action_timeout":"60","body_format":"'"$COMMAND"'","clear_body_format":"'"$CLEAR"'","user_env_format":"","notification_globalRead":false,"notification_globalWrite":false,"notification_globalManage":false,"recipients":[],"subscriptions":['"$TRIGGER_UUID1"']}'
+
+}
+
+if [ "$1" = "add_trigger" ]; then
+	#add_trigger "$2" "$3" "$4" "$5" "$6" "$7" "$8"
+	add_trigger "$2"
+
+elif [ "$1" = "update_trigger" ]; then
+        #update_trigger "$2" "$3" "$4" "$5" "$6" "$7" "$8"
+        update_trigger "$2"
+
+elif [ "$1" = "set_notification" ]; then
+        #set_notification "$2" "$3" "$4" "$5" "$6" "$7" "$8"
+        set_notification "$2" "$3" "$4"
+
+elif [ "$1" = "getall_notification" ]; then
+	getall_notification 
+
+else
+	
+	echo ""
+	echo "Incorrect Syntax:"
+	echo ""
+	#echo "$0 add_trigger <triggername1> <triggername2> <triggername3> <triggername4> <triggername5> <triggername6>"
+	echo "$0 add_trigger <triggername1>"
+	echo "Example:: $0 add_trigger ticketing"
+	#echo "$0 update_trigger <triggername1> <triggername2> <triggername3> <triggername4> <triggername5> <triggername6> <triggername7>"
+	#echo "Example:: $0 update_trigger AnyUATInstance2 CCMasterError401Unauth2 LinuxTicketing2 Linux3ConsecutiveTicketing2 Win4ConsecutiveTicketing2 WinTicketing2 CustomTrigger"
+	echo "$0 update_trigger <triggername1>"
+	echo "Example:: $0 update_trigger ticketing"
+	echo ""
+	#echo "Example:: $0 set_notification ITSMNotifier1  LinuxTicketing2 Linux3ConsecutiveTicketing2 Win4ConsecutiveTicketing2 WinTicketing2 CustomTrigger DSOM"
+	echo "Example:: $0 set_notification ticketing ticketing Acc"
+	echo ""
+
+fi
+

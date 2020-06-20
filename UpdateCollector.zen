@@ -1,0 +1,55 @@
+#!/usr/bin/sh
+
+# This shell script is intended to be sourced into your shell. It adds 
+
+source ../ZenossEnv.var
+# See ZenossEnv.var for all script env vars
+
+# Generic call to make Zenoss JSON API calls easier on the shell.
+
+curl_result=""
+zenoss_api () {
+    ROUTER_ENDPOINT=$1
+    ROUTER_ACTION=$2
+    ROUTER_METHOD=$3
+    DATA=$4
+
+    if [ -z "${DATA}" ]; then
+        echo "Usage: zenoss_api <endpoint> <action> <method> <data>"
+        return 1
+    fi
+
+    curl \
+	-k \
+        -u "$ZENOSS_USERNAME:$ZENOSS_PASSWORD" \
+        -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"action\":\"$ROUTER_ACTION\",\"method\":\"$ROUTER_METHOD\",\"data\":[$DATA], \"tid\":1}" "$ZENOSS_URL/zport/dmd/$ROUTER_ENDPOINT" \
+	2> /dev/null
+}
+
+# Helper call for adding standard device types.
+
+update_collector() {
+    DEV_CLASS=$1
+    COLLECTOR=$2
+    result_hostname=`zenoss_api device_router DeviceRouter getDevices "{\"uid\":\"/zport/dmd/$1\",\"params\":{},\"limit\":10000}" | $SCRIPTS_DIR/jq -M '.result.devices[].uid'`
+    for i in `echo $result_hostname`; do
+        uid=`zenoss_api device_router DeviceRouter getInfo "{\"uid\":$i}" | $SCRIPTS_DIR/jq -M '.result.data.uid'`
+        collector=`zenoss_api device_router DeviceRouter getInfo "{\"uid\":$i}" | $SCRIPTS_DIR/jq -M '.result.data.collector'`
+        result_hashcheck=`zenoss_api device_router DeviceRouter getDevices "{\"uid\":\"/zport/dmd/\",\"keys\":[\"name\"],\"limit\":1}" | $SCRIPTS_DIR/jq -M '.result.hash'`
+        zenoss_api device_router DeviceRouter setCollector "{\"uids\":[$uid],\"collector\":\"$COLLECTOR\",\"hashcheck\":$result_hashcheck}" | $SCRIPTS_DIR/jq -M '.'
+        sleep 8
+    done
+}
+
+
+if [ "$1" = "updatecollector" ]; then
+           update_collector $2 $3
+else
+	echo ""
+	echo "Incorrect Syntax:"
+	echo ""
+	echo "$0 updatecollector <device class> <collector name>"
+	echo ""
+fi

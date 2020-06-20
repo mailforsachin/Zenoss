@@ -1,0 +1,67 @@
+#!/bin/sh
+
+# Your Zenoss server settings.
+# The URL to access your Zenoss5 Endpoint
+source ../ZenossEnv.var
+# Generic call to make Zenoss JSON API calls easier on the shell.
+zenoss_api () {
+    ROUTER_ENDPOINT=$1
+    ROUTER_ACTION=$2
+    ROUTER_METHOD=$3
+    DATA=$4
+
+    if [ -z "${DATA}" ]; then
+        echo "Usage: zenoss_api <endpoint> <action> <method> <data>"
+        return 1
+    fi
+# add a -k for the curl call to ignore the default cert
+    curl \
+        -k \
+        -u "$ZENOSS_USERNAME:$ZENOSS_PASSWORD" \
+        -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"action\":\"$ROUTER_ACTION\",\"method\":\"$ROUTER_METHOD\",\"data\":[$DATA], \"tid\":1}" \
+        "$ZENOSS_URL/zport/dmd/$ROUTER_ENDPOINT"
+}
+
+
+# Helper call for adding standard device types.
+get_local()
+{
+    SOURCE_DEVICE_CLASS=$1
+    OUTPUTFILE=$2
+    
+    if  [[( -z "$SOURCE_DEVICE_CLASS" )|| (-z "$OUTPUTFILE" )]]; then
+        echo "Usage: move_device <SOURCE DEVICE CLASS> <OUTPUTFILE>"
+        return 1
+    fi
+
+    hostname_response=`zenoss_api device_router DeviceRouter getDevices "{\"uid\":\"/zport/dmd$1\",\"params\":{},\"limit\":10000}" | $SCRIPTS_DIR/jq -M '.result.devices[].uid'`
+    
+
+    for i in `echo $hostname_response`; 
+    do
+	
+	uid="${i%\"}"
+	uid="${uid#\"}"
+	echo "$uid"
+
+	zenoss_api "properties_router" "PropertiesRouter" "getZenProperties" "{\"uid\":\"$uid\",\"params\":{\"id\":\"zWinRMPassword\"}}">> $2
+	echo ",$i" >> $2
+	echo "" >> $2
+  
+    done
+
+}
+
+if [ "$1" = "get_local" ]; then
+        get_local "$2" "$3"
+else
+        echo ""
+        echo "Incorrect Syntax:"
+        echo ""
+        echo "$0 get_local <Device Class> <Output File>"
+        echo "EXAMPLE:: $0 get_local /Devices/Server/Microsoft/Windows OutputFile.txt"
+        echo ""
+fi
+

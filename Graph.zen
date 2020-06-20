@@ -1,0 +1,113 @@
+#!/usr/bin/sh
+
+# This shell script is intended to be sourced into your shell. It adds 
+
+source ../ZenossEnv.var
+# See ZenossEnv.var for all script env vars
+
+# Generic call to make Zenoss JSON API calls easier on the shell.
+
+curl_result=""
+zenoss_api () {
+    ROUTER_ENDPOINT=$1
+    ROUTER_ACTION=$2
+    ROUTER_METHOD=$3
+    DATA=$4
+
+    if [ -z "${DATA}" ]; then
+        echo "Usage: zenoss_api <endpoint> <action> <method> <data>"
+        return 1
+    fi
+
+    curl \
+	-k \
+        -u "$ZENOSS_USERNAME:$ZENOSS_PASSWORD" \
+        -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"action\":\"$ROUTER_ACTION\",\"method\":\"$ROUTER_METHOD\",\"data\":[$DATA], \"tid\":1}" "$ZENOSS_URL/zport/dmd/$ROUTER_ENDPOINT" \
+	2> /dev/null
+}
+
+# Helper call for adding standard device types.
+add_graph() {
+    TARGET_TEMPLATE=$1
+    TARGET_DEVICECLASS=$2
+    GRAPH_NAME=$3
+
+    TEMPLATE_UID="/zport/dmd/Devices$TARGET_DEVICECLASS/rrdTemplates/$TARGET_TEMPLATE"
+    if [ -z "$GRAPH_NAME" ]; then
+        echo "Usage: add_graph <template> <device class> <graph name>"
+        return 1
+    fi
+
+    template_exist=`zenoss_api template_router TemplateRouter getDeviceClassTemplates "{\"id\":\"/zport/dmd/Devices$TARGET_DEVICECLASS\"}" | $SCRIPTS_DIR/jq -M '.result[].children[].uid' | grep "\"$TEMPLATE_UID\""`
+    if [ "$template_exist" != "" ]; then
+    	zenoss_api template_router TemplateRouter addGraphDefinition "{\"templateUid\":\"$TEMPLATE_UID\",\"graphDefinitionId\":\"$GRAPH_NAME\"}"
+    else
+        echo "ERROR: Could not find Template"
+    fi
+}
+
+delete_graph() {
+    TARGET_TEMPLATE=$1
+    TARGET_DEVICECLASS=$2
+    GRAPH_NAME=$3
+
+    TEMPLATE_UID="/zport/dmd/Devices$TARGET_DEVICECLASS/rrdTemplates/$TARGET_TEMPLATE"
+    if [ -z "$GRAPH_NAME" ]; then
+        echo "Usage: add_graph <template> <device class> <graph name>"
+        return 1
+    fi
+
+    template_exist=`zenoss_api template_router TemplateRouter getDeviceClassTemplates "{\"id\":\"/zport/dmd/Devices$TARGET_DEVICECLASS\"}" | $SCRIPTS_DIR/jq -M '.result[].children[].uid' | grep "\"$TEMPLATE_UID\""`
+    if [ "$template_exist" != "" ]; then
+    	zenoss_api template_router TemplateRouter deleteGraphDefinition "{\"uid\":\"$TEMPLATE_UID/graphDefs/$GRAPH_NAME\"}"
+    else
+        echo "ERROR: Could not find Template"
+    fi
+}
+
+add_datapoint_to_graph() {
+
+    TARGET_TEMPLATE=$1
+    TARGET_DEVICECLASS=$2
+    TEMPLATE_UID="/zport/dmd/Devices$TARGET_DEVICECLASS/rrdTemplates/$TARGET_TEMPLATE"
+    GRAPH_UID=$TEMPLATE_UID/graphDefs/$3
+    DATASOURCE=$4
+    DATAPOINT_UID=$TEMPLATE_UID/datasources/$DATASOURCE/datapoints/$5
+
+    if [ -z "$5" ]; then
+        echo "Usage: add_datapoint_to_graph <template> <device class> <graph name> <data source> <data point>"
+        return 1
+    fi
+
+    template_exist=`zenoss_api template_router TemplateRouter getDeviceClassTemplates "{\"id\":\"/zport/dmd/Devices$TARGET_DEVICECLASS\"}" | $SCRIPTS_DIR/jq -M '.result[].children[].uid' | grep "\"$TEMPLATE_UID\""`
+    #zenoss_api template_router TemplateRouter getGraphs "{\"uid\":\"$TEMPLATE_UID\"}" | $SCRIPTS_DIR/jq -M '.'
+    #zenoss_api template_router TemplateRouter getDataPoints "{\"uid\":\"$TEMPLATE_UID\"}" | $SCRIPTS_DIR/jq -M '.'
+    if [ "$template_exist" != "" ]; then
+        zenoss_api template_router TemplateRouter addDataPointToGraph "{\"dataPointUid\":\"$DATAPOINT_UID\",\"graphUid\":\"$GRAPH_UID\",\"includeThresholds\":\"True\"}"
+    else
+        echo "ERROR: Could not find Template"
+    fi
+}
+
+
+
+if [ "$1" = "addgraph" ]; then
+        add_graph "$2" "$3" "$4" 
+elif [ "$1" = "adddatapoint" ]; then
+        add_datapoint_to_graph "$2" "$3" "$4" "$5" "$6"
+elif [ "$1" = "deletegraph" ]; then
+        delete_graph "$2" "$3" "$4" 
+else
+        echo ""
+        echo "Incorrect Syntax:"
+        echo ""
+        echo "$0 addgraph <template name> <target device class> <graph name>"
+        echo ""
+        echo "$0 deletegraph <template name> <target device class> <graph name>"
+        echo ""
+        echo "$0 adddatapoint <template name> <target device class> <graph name> <data source> <data point>"
+        echo ""
+fi
+

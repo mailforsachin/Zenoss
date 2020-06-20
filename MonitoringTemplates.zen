@@ -1,0 +1,96 @@
+#!/usr/bin/sh
+
+# This shell script is intended to be sourced into your shell. It adds
+
+source ../ZenossEnv.var
+# See ZenossEnv.var for all script env vars
+
+# Generic call to make Zenoss JSON API calls easier on the shell.
+
+curl_result=""
+zenoss_api () {
+    ROUTER_ENDPOINT=$1
+    ROUTER_ACTION=$2
+    ROUTER_METHOD=$3
+    DATA=$4
+
+    if [ -z "${DATA}" ]; then
+        echo "Usage: zenoss_api <endpoint> <action> <method> <data>"
+        return 1
+    fi
+
+    curl \
+        -k \
+        -u "$ZENOSS_USERNAME:$ZENOSS_PASSWORD" \
+        -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"action\":\"$ROUTER_ACTION\",\"method\":\"$ROUTER_METHOD\",\"data\":[$DATA], \"tid\":1}" "$ZENOSS_URL/zport/dmd/$ROUTER_ENDPOINT" \
+        2> /dev/null
+}
+
+# Helper call for adding standard device types.
+copy_template() {
+    SOURCE_NAME=$1
+    SOURCE_DEVCLASS=$2
+    DESTINATION_DEVCLASS=$3
+
+    if [ -z "$DESTINATION_DEVCLASS" ]; then
+        echo "Usage: copy_template <source device class> <source template name> <destination device class> <destination template name>"
+        return 1
+    fi
+
+    SOURCE_UID="/zport/dmd/Devices$SOURCE_DEVCLASS/rrdTemplates/$SOURCE_NAME"
+    DESTINATION_UID="/zport/dmd/Devices$DESTINATION_DEVCLASS"
+    DESTINATION_TEMPLATE_UID="/zport/dmd/Devices$DESTINATION_DEVCLASS/rrdTemplates/$SOURCE_NAME"
+
+    valid_srctemplate=`zenoss_api template_router TemplateRouter getTemplates "{\"id\":\"$SOURCE_UID\"}" | $SCRIPTS_DIR/jq -M '.result[]' | grep "$SOURCE_UID"`
+    valid_desttemplate=`zenoss_api template_router TemplateRouter getTemplates "{\"id\":\"$DESTINATION_TEMPLATE_UID\"}" | $SCRIPTS_DIR/jq -M '.result[]' | grep ObjectNotFoundException`
+    valid_destdevclass=`zenoss_api device_router DeviceRouter getDeviceClasses "{\"id\":\"/zport/dmd/Devices$DESTINATION_DEVCLASS\"}" | $SCRIPTS_DIR/jq -M '.result.deviceClasses[].name' | grep "$DESTINATION_DEVCLASS"`
+    #echo "Destination check: " $valid_destdevclass
+    if [ "$valid_srctemplate" != "" ] && [ "$valid_destdevclass" != "" ] && [ "$valid_desttemplate" != "" ]; then
+         zenoss_api template_router TemplateRouter copyTemplate "{\"uid\":\"$SOURCE_UID\",\"targetUid\":\"$DESTINATION_UID\"}" | $SCRIPTS_DIR/jq -M '.result'
+    else
+         if [ "$valid_srctemplate" != "" ]; then
+             echo "ERROR: $SOURCE_DEVCLASS $SOURCE_NAME is not a valid source template"
+         else
+             echo "ERROR: $DESTINATION_DEVCLASS is not a valid destination device class or the template already exists"
+         fi
+    fi
+}
+
+delete_template() {
+
+    NAME=$1
+    DEVCLASS=$2
+
+    if [ -z "$DEVCLASS" ]; then
+        echo "Usage: delete_template <device class> <template name>"
+        return 1
+    fi
+
+    TEMPLATE_UID="/zport/dmd/Devices$DEVCLASS/rrdTemplates/$NAME"
+
+    valid_srctemplate=`zenoss_api template_router TemplateRouter getTemplates "{\"id\":\"$TEMPLATE_UID\"}" | $SCRIPTS_DIR/jq -M '.result[]' | grep $TEMPLATE_UID`
+    if [ "$valid_srctemplate" != "" ]; then
+         zenoss_api template_router TemplateRouter deleteTemplate "{\"uid\":\"$TEMPLATE_UID\"}" | $SCRIPTS_DIR/jq -M '.result'
+    else
+         if [ "$valid_srctemplate" != "" ]; then
+             echo "ERROR: $DEVCLASS $NAME is not a valid source template"
+         fi
+    fi
+}
+
+
+if [ "$1" = "copy" ]; then
+        copy_template "$2" "$3" "$4"
+elif [ "$1" = "delete" ]; then
+        delete_template "$2" "$3"
+else
+        echo ""
+        echo "Incorrect Syntax:"
+        echo ""
+        echo "$0 copy <source template name> <source device class> <destination device class>"
+        echo "or"
+        echo "$0 delete <template name> <device class> "
+        echo ""
+fi

@@ -1,0 +1,72 @@
+#!/bin/sh
+
+source ../ZenossEnv.var
+
+zenoss_api () {
+    ROUTER_ENDPOINT=$1
+    ROUTER_ACTION=$2
+    ROUTER_METHOD=$3
+    DATA=$4
+
+    if [ -z "${DATA}" ]; then
+        echo "Usage: zenoss_api <endpoint> <action> <method> <data>"
+        return 1
+    fi
+# add a -k for the curl call to ignore the default cert
+    curl \
+        -k \
+        -u "$ZENOSS_USERNAME:$ZENOSS_PASSWORD" \
+        -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"action\":\"$ROUTER_ACTION\",\"method\":\"$ROUTER_METHOD\",\"data\":[$DATA], \"tid\":1}" \
+        "$ZENOSS_URL/zport/dmd/$ROUTER_ENDPOINT"
+}
+
+
+add_trigger() 
+{
+    TRIGGER_NAME=$1
+    #echo $TRIGGER_NAME
+    
+    if [ -z "$TRIGGER_NAME" ]; then
+        echo "Usage: add_trigger <triggername>"
+        return 1
+    fi
+    
+    zenoss_api Events/triggers_router TriggersRouter addTrigger "{\"newId\":\"$TRIGGER_NAME\"}"
+    
+}
+
+update_trigger()
+{
+
+TRIGGER_NAME=$1
+
+#echo "Use for testing::zenoss_api Events/triggers_router TriggersRouter getTriggerList "{}""
+
+TRIGGER_UUID=`zenoss_api Events/triggers_router TriggersRouter getTriggerList "{}"|$SCRIPTS_DIR/jq --arg TRIGGER_NAME "$TRIGGER_NAME" '.result.data[]|select(.name==$TRIGGER_NAME)' |$SCRIPTS_DIR/jq '.uuid'`
+
+if [ -z "$TRIGGER_UUID" ]; then
+	echo "Error: Trigger is not present"
+        return 1
+fi
+
+#zenoss_api Events/triggers_router TriggersRouter getTrigger "{\"uuid\":$TRIGGER_UUID}"|$SCRIPTS_DIR/jq
+
+Rules="(dev.production_state == 1000) and (evt.severity >= 4) and (\\\"/App/Zenoss\\\" not in evt.event_class) and (\\\"/Status/Ping\\\" not in evt.event_class) and (\\\"/Status/Winrm\\\" not in evt.event_class) and (\\\"/Perf/MissedRuns\\\" not in evt.event_class) and (\\\"/Status/Winrm/Ping\\\" not in evt.event_class) and (\\\"/Cmd/Fail\\\" not in evt.event_class) and (\\\"Server not found in Kerberos\\\" not in evt.message) and (\\\"Illegal operation attempted on\\\" not in evt.message) and (\\\"threshold of Processor Queue\\\" not in evt.message) and (\\\"HTTP Unauthorized received\\\" not in evt.message) and (\\\"kerberos\\\" not in evt.summary) and (\\\"authGSSClientStep fail\\\" not in evt.message) and (\\\"Windows Perfmon Error\\\" not in evt.message) and (\\\"kinit: Clients credentials have\\\" not in evt.message) and (\\\"failed collection\\\" not in evt.message)"
+
+zenoss_api Events/triggers_router TriggersRouter updateTrigger "{\"uuid\":$TRIGGER_UUID,\"enabled\":true,\"name\":\"$TRIGGER_NAME\",\"rule\":{\"source\":\"$Rules\"},\"globalRead\":false,\"globalWrite\":false,\"globalManage\":false,\"users\":[]}"
+
+}
+
+if [ "$1" = "add_trigger" ]; then
+	add_trigger "$2"
+elif [ "$1" = "update_trigger" ]; then
+        update_trigger "$2"
+else
+	echo ""
+	echo "Incorrect Syntax:"
+	echo ""
+	echo "$0 add_trigger <triggername> OR $0 update_trigger <triggername>"
+	echo ""
+fi

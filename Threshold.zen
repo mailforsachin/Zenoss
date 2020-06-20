@@ -1,0 +1,82 @@
+#!/usr/bin/sh
+
+# This shell script is intended to be sourced into your shell. It adds 
+
+source ../ZenossEnv.var
+# See ZenossEnv.var for all script env vars
+
+# Generic call to make Zenoss JSON API calls easier on the shell.
+
+curl_result=""
+zenoss_api () {
+    ROUTER_ENDPOINT=$1
+    ROUTER_ACTION=$2
+    ROUTER_METHOD=$3
+    DATA=$4
+
+    if [ -z "${DATA}" ]; then
+        echo "Usage: zenoss_api <endpoint> <action> <method> <data>"
+        return 1
+    fi
+
+    curl \
+	-k \
+        -u "$ZENOSS_USERNAME:$ZENOSS_PASSWORD" \
+        -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"action\":\"$ROUTER_ACTION\",\"method\":\"$ROUTER_METHOD\",\"data\":[$DATA], \"tid\":1}" "$ZENOSS_URL/zport/dmd/$ROUTER_ENDPOINT" \
+	2> /dev/null
+}
+
+# Helper call for adding standard device types.
+add_threshold() {
+    TARGET_TEMPLATE=$1
+    TARGET_DEVICECLASS=$2
+    THRESHOLD_NAME=$3
+    THRESHOLD_TYPE=$4
+    DATASOURCE=$5
+    POINTNAME=$6
+    MIN_VAL=$7
+    MAX_VAL=$8
+    SEVERITY=$9
+    EVENT_CLASS=${10}
+    VIOLATIONPCT=${11}
+    TIMEPERIOD=${12}
+
+    TEMPLATE_UID="/zport/dmd/Devices$TARGET_DEVICECLASS/rrdTemplates/$TARGET_TEMPLATE"
+
+    if [ -z "$THRESHOLD_TYPE" ]; then
+        echo "Usage: add_threshold add <template> <device class> <threshold name> <threshold type> <data points> <min val> <max val> <event class>"
+        return 1
+    fi
+
+    template_exist=`zenoss_api template_router TemplateRouter getDeviceClassTemplates "{\"id\":\"/zport/dmd/Devices$TARGET_DEVICECLASS\"}" | $SCRIPTS_DIR/jq -M '.result[].children[].uid' | grep "\"$TEMPLATE_UID\""`
+    if [ "$template_exist" != "" ]; then
+    	#available_thresholds=`zenoss_api template_router TemplateRouter getThresholds "{\"uid\":\"$TEMPLATE_UID\",\"query\":\"\"}"`
+    	#available_datapoints=`zenoss_api template_router TemplateRouter getDataPoints "{\"uid\":\"$TEMPLATE_UID\",\"query\":\"\"}"`
+    	#available_datasources=`zenoss_api template_router TemplateRouter getDataSources "{\"uid\":\"$TEMPLATE_UID\"}"`
+        #echo "$available_thresholds" | $SCRIPTS_DIR/jq -M '.result.data[]'
+        #echo "$available_datasources" | $SCRIPTS_DIR/jq -M '.result.data[].name'
+        #echo "$available_datapoints" | $SCRIPTS_DIR/jq -M '.result.data[]'
+    	threshold=`zenoss_api template_router TemplateRouter addThreshold "{\"uid\":\"$TEMPLATE_UID\",\"thresholdType\":\"$THRESHOLD_TYPE\",\"thresholdId\":\"$THRESHOLD_NAME\",\"dataPoints\":[\"$TEMPLATE_UID/datasources/$DATASOURCE/datapoints/$POINTNAME\"]}"`
+        if [ "$THRESHOLD_TYPE" == "MinMaxThreshold" ]; then
+    		update_val=`zenoss_api template_router TemplateRouter setInfo "{\"uid\":\"$TEMPLATE_UID/thresholds/$THRESHOLD_NAME\",\"minval\":\"$MIN_VAL\",\"maxval\":\"$MAX_VAL\",\"eventClass\":\"$EVENT_CLASS\",\"severity\":$SEVERITY}"`
+        elif [ "$THRESHOLD_TYPE" == "DurationThreshold" ]; then
+    		update_val=`zenoss_api template_router TemplateRouter setInfo "{\"uid\":\"$TEMPLATE_UID/thresholds/$THRESHOLD_NAME\",\"minval\":\"$MIN_VAL\",\"maxval\":\"$MAX_VAL\",\"eventClass\":\"$EVENT_CLASS\",\"violationPercentage\":\"$VIOLATIONPCT\",\"timePeriod\":\"$TIMEPERIOD\",\"severity\":\"$SEVERITY\"}"`
+        fi
+        echo "$threshold" | $SCRIPTS_DIR/jq -M '.result'
+        echo "$update_val" | $SCRIPTS_DIR/jq -M '.result'
+    else
+        echo "ERROR: Could not find Template"
+    fi
+}
+
+if [ "$1" = "add" ]; then
+        add_threshold "$2" "$3" "$4" "$5" "$6" "$7" "$8" "$9" "${10}" "${11}" "${12}" "${13}"
+else
+	echo ""
+	echo "Incorrect Syntax:"
+	echo ""
+	echo "$0 add <template name> <target device class> <threhshold name> <threshold type> <datapoint datasource> <datapoint name> <min val> <max val> <severity 5,4,3,2> <event class>"
+	echo ""
+fi

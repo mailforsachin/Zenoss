@@ -1,0 +1,125 @@
+#!/bin/bash
+
+# Your Zenoss server settings.
+# The URL to access your Zenoss5 Endpoint
+source ../ZenossEnv.var
+# Generic call to make Zenoss JSON API calls easier on the shell.
+zenoss_api () {
+    ROUTER_ENDPOINT=$1
+    ROUTER_ACTION=$2
+    ROUTER_METHOD=$3
+    DATA=$4
+
+    if [ -z "${DATA}" ]; then
+        echo "Usage: zenoss_api <endpoint> <action> <method> <data>"
+        return 1
+    fi
+# add a -k for the curl call to ignore the default cert
+    curl \
+        -k \
+        -u "$ZENOSS_USERNAME:$ZENOSS_PASSWORD" \
+        -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"action\":\"$ROUTER_ACTION\",\"method\":\"$ROUTER_METHOD\",\"data\":[$DATA], \"tid\":1}" \
+        "$ZENOSS_URL/zport/dmd/$ROUTER_ENDPOINT"
+}
+
+
+clear
+while :
+do
+echo "---------------------------------------------------"
+echo " "
+echo "####################################################"
+echo "Add a local [F]ilesystem template for a device"
+echo "[R]emove a local Filesystem template for a device"
+echo "[C]heck existing threshold of the filesystem template. Add new threshold"
+echo "[E]xit"
+echo "####################################################"
+echo " "
+echo "---------------------------------------------------"
+echo " "
+
+read Option
+
+case "$Option" in 
+"F" | "f")
+
+	echo "Enter the device classname(e.g: /Server/Microsoft/Windows/UAT Leveraged): "
+	read deviceclassname
+	echo "Enter the servername(e.g: 155.16.54.207 OR 155.16.54.87): "
+	read servername
+	echo $servername
+	echo $deviceclassname
+ 	UIDS=`zenoss_api "device_router" "DeviceRouter" getComponents "{\"uid\":\"/zport/dmd/Devices$deviceclassname/devices/$servername\",\"meta_type\":\"FileSystem\"}"| $SCRIPTS_DIR/jq -M '.result.data[].uid'`
+	
+	echo "Which drive do you want to create a local template for?.Enter complete path"
+	echo "Choices available are: $UIDS"
+	read choice
+	zenoss_api "template_router" "TemplateRouter" "makeLocalRRDTemplate" "{\"uid\":\"$choice\",\"templateName\":\"/zport/dmd/Devices$deviceclassname/rrdTemplates/FileSystem\"}"
+
+;;
+
+"R" | "r")
+
+	echo "Enter the device classname(e.g: /Server/Microsoft/Windows/UAT Leveraged): "
+        read deviceclassname
+        echo "Enter the servername(e.g: 155.16.54.207 OR 155.16.54.87): "
+        read servername
+        echo $servername
+        echo $deviceclassname
+        UIDS=`zenoss_api "device_router" "DeviceRouter" getComponents "{\"uid\":\"/zport/dmd/Devices$deviceclassname/devices/$servername\",\"meta_type\":\"FileSystem\"}"| $SCRIPTS_DIR/jq -M '.result.data[].uid'`
+
+        echo "Which drive do you want to delete a local template for?.Enter complete path"
+        echo "Choices available are: $UIDS"
+        read choice
+        zenoss_api "template_router" "TemplateRouter" "removeLocalRRDTemplate" "{\"uid\":\"$choice\",\"templateName\":\"/zport/dmd/Devices$deviceclassname/rrdTemplates/FileSystem\"}"
+
+
+
+;;
+"C" | "c")
+
+	echo "Enter the device classname(e.g: /Server/Microsoft/Windows/UAT Leveraged): "
+        read deviceclassname
+        echo "Enter the servername(e.g: 155.16.54.207 OR 155.16.54.87): "
+        read servername
+        echo $servername
+        echo $deviceclassname
+        UIDS=`zenoss_api "device_router" "DeviceRouter" getComponents "{\"uid\":\"/zport/dmd/Devices$deviceclassname/devices/$servername\",\"meta_type\":\"FileSystem\"}"| $SCRIPTS_DIR/jq -M '.result.data[].uid'`
+
+        echo "Which drive do you want to adjust a local template for? Enter complete path"
+        echo "Choices available are: $UIDS"
+        read choice
+	threshold=`zenoss_api "template_router" "TemplateRouter" getThresholds "{\"uid\":\"$choice/FileSystem\"}"|$SCRIPTS_DIR/jq -M '.result.data[].uid'`
+	echo "Select the threshold that you want to alter by selecting the complete path: "	
+	echo "Choices available are: $threshold"
+        read thresholdtomodify
+	available_thresholds=`zenoss_api template_router TemplateRouter getThresholds "{\"uid\":\"$thresholdtomodify\",\"query\":\"\"}"`
+	echo $available_thresholds
+	echo "Enter newmaxvalue: "
+	read newmaxvalue
+	echo "Enter newminvalue: "
+	read newminvalue
+	echo "Enter severity: "
+	read newseverity
+	zenoss_api "template_router" "TemplateRouter" setInfo "{\"minval\":\"$newminvalue\",\"maxval\":\"$newmaxvalue\",\"severity\":$newseverity,\"uid\":\"$thresholdtomodify\"}"
+	echo "The new values are as below: "
+	available_thresholds=`zenoss_api template_router TemplateRouter getThresholds "{\"uid\":\"$thresholdtomodify\",\"query\":\"\"}"`
+        echo $available_thresholds
+	
+
+;;
+
+
+"E"|"e")
+break
+;;
+
+*)
+echo "Enter correct choice! "
+;;
+esac
+done
+		
+

@@ -1,0 +1,61 @@
+#!/bin/sh
+
+source ../ZenossEnv.var
+
+zenoss_api () {
+    ROUTER_ENDPOINT=$1
+    ROUTER_ACTION=$2
+    ROUTER_METHOD=$3
+    DATA=$4
+
+    if [ -z "${DATA}" ]; then
+        echo "Usage: zenoss_api <endpoint> <action> <method> <data>"
+        return 1
+    fi
+# add a -k for the curl call to ignore the default cert
+    curl \
+        -k \
+        -u "$ZENOSS_USERNAME:$ZENOSS_PASSWORD" \
+        -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"action\":\"$ROUTER_ACTION\",\"method\":\"$ROUTER_METHOD\",\"data\":[$DATA], \"tid\":1}" \
+        "$ZENOSS_URL/zport/dmd/$ROUTER_ENDPOINT"
+}
+
+
+add_trigger() 
+{
+    TRIGGER_NAME=$1
+    #echo $TRIGGER_NAME
+    
+    if [ -z "$TRIGGER_NAME" ]; then
+        echo "Usage: add_trigger <triggername>"
+        return 1
+    fi
+    
+    zenoss_api Events/triggers_router TriggersRouter addTrigger "{\"newId\":\"$TRIGGER_NAME\"}"
+    
+}
+
+get_triggeruuid()
+{
+
+TRIGGER_NAME=$1
+
+#getTriggerID=`zenoss_api Events/triggers_router TriggersRouter getTriggerList "{}"|$SCRIPTS_DIR/jq --arg TRIGGER_NAME "$TRIGGER_NAME" '.result.data[]|select(.name==$TRIGGER_NAME)' |$SCRIPTS_DIR/jq '.uuid'`
+getTriggerID=`zenoss_api Events/triggers_router TriggersRouter getTriggerList "{}"|$SCRIPTS_DIR/jq --arg TRIGGER_NAME "$TRIGGER_NAME" '.result.data[]|select(.name==$TRIGGER_NAME)'|$SCRIPTS_DIR/jq '.uuid'`
+echo $getTriggerID
+
+}
+
+if [ "$1" = "add_trigger" ]; then
+	add_trigger "$2"
+elif [ "$1" = "get_triggeruuid" ]; then
+        get_triggeruuid "$2"
+else
+	echo ""
+	echo "Incorrect Syntax:"
+	echo ""
+	echo "$0 add_trigger <triggername> OR $0 get_triggeruuid <triggername>"
+	echo ""
+fi

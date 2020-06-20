@@ -1,0 +1,58 @@
+#!/bin/sh
+
+# Your Zenoss server settings.
+# The URL to access your Zenoss5 Endpoint
+source ../ZenossEnv.var
+# Generic call to make Zenoss JSON API calls easier on the shell.
+zenoss_api () {
+    ROUTER_ENDPOINT=$1
+    ROUTER_ACTION=$2
+    ROUTER_METHOD=$3
+    DATA=$4
+
+    if [ -z "${DATA}" ]; then
+        echo "Usage: zenoss_api <endpoint> <action> <method> <data>"
+        return 1
+    fi
+# add a -k for the curl call to ignore the default cert
+    curl \
+        -k \
+        -u "$ZENOSS_USERNAME:$ZENOSS_PASSWORD" \
+        -X POST \
+        -H "Content-Type: application/json" \
+        -d "{\"action\":\"$ROUTER_ACTION\",\"method\":\"$ROUTER_METHOD\",\"data\":[$DATA], \"tid\":1}" \
+        "$ZENOSS_URL/zport/dmd/$ROUTER_ENDPOINT"
+}
+
+
+set_AcCodeProjActID()
+
+{
+
+ACC_CODE="$1"
+PROJ_ID="$2"
+ACT_ID="$3"
+
+zenoss_api "properties_router" "PropertiesRouter" "addCustomProperty" "{\"uid\":\"/zport/dmd/Devices\",\"id\":\"cProjectID\",\"type\":\"string\",\"label\":\"cProjectID\",\"value\":\"$PROJ_ID\"}"
+zenoss_api "properties_router" "PropertiesRouter" "addCustomProperty" "{\"uid\":\"/zport/dmd/Devices\",\"id\":\"cActivityID\",\"type\":\"string\",\"label\":\"cActivityID\",\"value\":\"$ACT_ID\"}"
+
+zenoss_api "properties_router" "PropertiesRouter" "setZenProperty" "{\"uid\":\"/zport/dmd/Devices\",\"zProperty\":\"cAccountCode\",\"value\":\"$ACC_CODE\"}"
+
+}
+
+if [ "$1" = "set_AcCodeProjActID" ]; then
+        set_AcCodeProjActID "$2" "$3" "$4"
+
+else
+        echo ""
+        echo "Incorrect Syntax:"
+        echo ""S
+        echo "$0 set_AcCodeProjActID <Acc_Code> <ProjectID> <ActivityID>"
+        echo "EXAMPLE:: $0 set_AcCodeProjActID xxx 1243 1.1"
+        echo ""
+fi
+
+
+
+
+
